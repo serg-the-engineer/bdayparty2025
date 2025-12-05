@@ -62,6 +62,7 @@ function getSpreadsheet() {
 
 /**
  * Обработка GET запросов
+ * Все запросы идут через GET для избежания проблем с CORS preflight
  */
 function doGet(e) {
   const action = e.parameter.action;
@@ -71,8 +72,34 @@ function doGet(e) {
 
   try {
     switch (action) {
+      case 'validate':
+        result = handleValidate(guestId);
+        break;
       case 'init':
         result = handleInit(guestId);
+        break;
+      case 'rsvp':
+        result = handleRsvp({
+          guestId: guestId,
+          name: e.parameter.name,
+          status: e.parameter.status,
+          plusOne: e.parameter.plusOne === 'true',
+          showPublic: e.parameter.showPublic === 'true'
+        });
+        break;
+      case 'topic':
+        result = handleAddTopic({
+          guestId: guestId,
+          authorName: e.parameter.authorName,
+          text: e.parameter.text
+        });
+        break;
+      case 'like':
+        result = handleLike({
+          guestId: guestId,
+          topicId: e.parameter.topicId,
+          unlike: e.parameter.unlike === 'true'
+        });
         break;
       default:
         result = { success: false, error: 'Unknown action' };
@@ -81,53 +108,47 @@ function doGet(e) {
     result = { success: false, error: error.message };
   }
 
+  // Для Google Apps Script важно использовать TEXT, а не JSON
   return ContentService
     .createTextOutput(JSON.stringify(result))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
- * Обработка POST запросов
+ * Обработка POST запросов - не используется, все через GET
+ * Оставлено для обратной совместимости
  */
 function doPost(e) {
-  let data;
-
-  try {
-    data = JSON.parse(e.postData.contents);
-  } catch (error) {
-    return ContentService
-      .createTextOutput(JSON.stringify({ success: false, error: 'Invalid JSON' }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-
-  let result;
-
-  try {
-    switch (data.action) {
-      case 'rsvp':
-        result = handleRsvp(data);
-        break;
-      case 'topic':
-        result = handleAddTopic(data);
-        break;
-      case 'like':
-        result = handleLike(data);
-        break;
-      default:
-        result = { success: false, error: 'Unknown action' };
-    }
-  } catch (error) {
-    result = { success: false, error: error.message };
-  }
-
   return ContentService
-    .createTextOutput(JSON.stringify(result))
+    .createTextOutput(JSON.stringify({
+      success: false,
+      error: 'Use GET requests instead'
+    }))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
 // ============================================
 // HANDLERS
 // ============================================
+
+/**
+ * Валидация гостя - проверить, что гость существует
+ */
+function handleValidate(guestId) {
+  if (!guestId) {
+    return { success: false, error: 'Guest ID is required' };
+  }
+
+  const guest = getGuestById(guestId);
+  if (!guest) {
+    return { success: false, error: 'Invalid guest ID' };
+  }
+
+  return {
+    success: true,
+    guest: guest
+  };
+}
 
 /**
  * Инициализация - получить все данные для гостя
@@ -203,6 +224,30 @@ function handleLike(data) {
     topics: topics
   };
 }
+
+// ============================================
+// GUEST FUNCTIONS
+// ============================================
+
+/**
+ * Получить гостя по ID
+ */
+function getGuestById(guestId) {
+  const sheet = getSpreadsheet().getSheetByName('RSVP');
+  const data = sheet.getDataRange().getValues();
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === guestId) {
+      return {
+        guestId: data[i][0],
+        name: data[i][1]
+      };
+    }
+  }
+
+  return null;
+}
+
 
 // ============================================
 // RSVP FUNCTIONS
@@ -384,14 +429,16 @@ function toggleLike(guestId, topicId, unlike) {
 }
 
 // ============================================
-// CORS HEADERS (для браузера)
+// CORS - не требуется при правильном развертывании
 // ============================================
 
 /**
- * Обработка preflight запросов
+ * ВАЖНО: Google Apps Script автоматически обрабатывает CORS
+ * если веб-приложение развернуто с доступом "Все".
+ *
+ * Убедитесь что при развертывании выбрано:
+ * - Выполнять как: "Я"
+ * - Кто имеет доступ: "Все" или "Все, даже анонимные"
+ *
+ * После изменения кода создайте НОВОЕ развертывание!
  */
-function doOptions(e) {
-  return ContentService
-    .createTextOutput('')
-    .setMimeType(ContentService.MimeType.TEXT);
-}

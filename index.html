@@ -618,6 +618,77 @@
       pointer-events: none;
     }
 
+    /* Loading screen */
+    .loading-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--color-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      flex-direction: column;
+    }
+
+    .loader-container {
+      text-align: center;
+      animation: fadeIn 0.5s ease-out;
+    }
+
+    .loader-spinner {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 1.5rem;
+    }
+
+    .ball {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--color-accent);
+      animation: bounce 1.4s ease-in-out infinite both;
+    }
+
+    .ball:nth-child(1) {
+      animation-delay: -0.32s;
+    }
+
+    .ball:nth-child(2) {
+      animation-delay: -0.16s;
+    }
+
+    .ball:nth-child(3) {
+      animation-delay: 0s;
+    }
+
+    .loader-text {
+      color: var(--color-accent);
+      font-weight: 600;
+      font-size: 1.1rem;
+      margin: 0;
+      transition: opacity 0.3s ease;
+      animation: textFade 0.3s ease;
+    }
+
+    @keyframes textFade {
+      0% {
+        opacity: 0.7;
+      }
+
+      50% {
+        opacity: 1;
+      }
+
+      100% {
+        opacity: 1;
+      }
+    }
+
     /* Desktop styles */
     @media (min-width: 768px) {
       section {
@@ -748,6 +819,19 @@
       }
     }
 
+    @keyframes bounce {
+
+      0%,
+      80%,
+      100% {
+        transform: scale(0);
+      }
+
+      40% {
+        transform: scale(1);
+      }
+    }
+
     .fade-in {
       animation: fadeIn 0.4s ease-out;
     }
@@ -785,6 +869,18 @@
             class="nav-label">Адрес</span></a></li>
     </ul>
   </nav>
+
+  <!-- Loading screen -->
+  <div id="loading-screen" class="loading-screen">
+    <div class="loader-container">
+      <div class="loader-spinner">
+        <div class="ball"></div>
+        <div class="ball"></div>
+        <div class="ball"></div>
+      </div>
+      <p class="loader-text">Проверяю приглашение...</p>
+    </div>
+  </div>
 
   <!-- Main content (hidden until guest is verified) -->
   <main id="main-content" class="hidden">
@@ -923,7 +1019,7 @@
             <li class="wishlist-item">
               <span class="wishlist-num">1</span>
               <span class="wishlist-text">Пластик для 3D-печати PLA, PETG в любом количестве (<a
-                  href="https://k3d.tech/part-navi/filament/" target="_blank">сравнить тут</a>)</span>
+                  href="https://k3d.tech/part-navi/filament/" target="_blank">сравнить можно тут</a>)</span>
             </li>
             <li class="wishlist-item">
               <span class="wishlist-num">2</span>
@@ -1010,14 +1106,7 @@
     // ========================================
 
     // Google Apps Script Web App URL (replace with your deployed URL)
-    const API_URL = 'https://script.google.com/macros/s/AKfycbzPyPPFOqi_VGSqEV8BZDxcdqGsVo7aiTMXSvrq460zJKpMZo1R185AwpBMW6vJbnLj/exec';
-
-    // Guest mapping: URL hash -> display name
-    const GUESTS = {
-      'super-puper-vasya': 'Вася',
-      // Add more guests here...
-      // 'unique-slug': 'Имя',
-    };
+    const API_URL = 'https://script.google.com/macros/s/AKfycbypKE6Gor-gF5Iuj1ufdwWs65-_yZCNjy7qFGM41pn-6Ph9sYKbfwPPe3dM3Qcj1SwD/exec';
 
     // ========================================
     // STATE
@@ -1030,37 +1119,77 @@
     let guestLikes = new Set();
 
     // ========================================
+    // LOADER
+    // ========================================
+
+    const loaderTexts = [
+      'Проверяю приглашение...',
+      'Получаю расписание...',
+      'Формирую темы для дебатов...',
+      'Шевелю мозгами...',
+      'Готовлю сюрпризы...',
+      'Собираю гостей...',
+      'Тупой гугл долго отвечает...'
+    ];
+
+    let loaderTextIndex = 0;
+    let loaderTextInterval = null;
+
+    // ========================================
     // INITIALIZATION
     // ========================================
 
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', () => {
+      showLoader();
+      init();
+    });
 
-    function init() {
+    async function init() {
       // Get guest ID from URL hash
       const hash = window.location.hash.slice(1);
 
-      if (!hash || !GUESTS[hash]) {
+      if (!hash) {
         showError();
         return;
       }
 
       currentGuestId = hash;
-      currentGuest = GUESTS[hash];
 
-      // Show main content
-      document.getElementById('main-content').classList.remove('hidden');
-      document.getElementById('error-page').classList.add('hidden');
+      // First load guest data to validate user
+      try {
+        const response = await fetch(`${API_URL}?action=validate&guest=${currentGuestId}`, {
+          redirect: 'follow'
+        });
+        const data = await response.json();
 
-      // Set guest name
-      document.getElementById('guest-name').textContent = currentGuest;
+        if (!data.success || !data.guest) {
+          showError();
+          return;
+        }
 
-      // Load data from server
-      loadData();
+        // Guest is valid, set data
+        currentGuest = data.guest.name;
+
+        // Show main content
+        document.getElementById('main-content').classList.remove('hidden');
+        document.getElementById('error-page').classList.add('hidden');
+
+        // Set guest name
+        document.getElementById('guest-name').textContent = currentGuest;
+
+        // Load full data for the guest
+        loadData();
+      } catch (error) {
+        console.error('Failed to validate guest:', error);
+        showError();
+      }
     }
 
     async function loadData() {
       try {
-        const response = await fetch(`${API_URL}?action=init&guest=${currentGuestId}`);
+        const response = await fetch(`${API_URL}?action=init&guest=${currentGuestId}`, {
+          redirect: 'follow'
+        });
         const data = await response.json();
 
         if (data.success) {
@@ -1073,19 +1202,25 @@
             showMyStatus();
           }
 
-          // Update guests count and list
+          // Update guests count and list (guests data is now loaded in init)
           updateGuestsList(data.guests || []);
 
           // Load topics
           topics = data.topics || [];
           guestLikes = new Set(data.myLikes || []);
           renderTopics();
+
+          // Hide loader after successful data load
+          hideLoader();
         }
       } catch (error) {
         console.error('Failed to load data:', error);
         // Show demo data if API is not configured
         if (API_URL === 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') {
           showDemoMode();
+          hideLoader();
+        } else {
+          hideLoader();
         }
       }
     }
@@ -1104,7 +1239,44 @@
       renderTopics();
     }
 
+    function startLoaderTextRotation() {
+      // Reset to first text
+      loaderTextIndex = 0;
+      updateLoaderText();
+
+      // Start rotating every second
+      loaderTextInterval = setInterval(() => {
+        loaderTextIndex = (loaderTextIndex + 1) % loaderTexts.length;
+        updateLoaderText();
+      }, 1000);
+    }
+
+    function stopLoaderTextRotation() {
+      if (loaderTextInterval) {
+        clearInterval(loaderTextInterval);
+        loaderTextInterval = null;
+      }
+    }
+
+    function updateLoaderText() {
+      const loaderTextElement = document.querySelector('.loader-text');
+      if (loaderTextElement) {
+        loaderTextElement.textContent = loaderTexts[loaderTextIndex];
+      }
+    }
+
+    function showLoader() {
+      document.getElementById('loading-screen').classList.remove('hidden');
+      startLoaderTextRotation();
+    }
+
+    function hideLoader() {
+      document.getElementById('loading-screen').classList.add('hidden');
+      stopLoaderTextRotation();
+    }
+
     function showError() {
+      hideLoader(); // This will also stop text rotation
       document.getElementById('main-content').classList.add('hidden');
       document.getElementById('error-page').classList.remove('hidden');
     }
@@ -1121,17 +1293,17 @@
       const showPublic = document.getElementById('show-public').checked;
 
       try {
-        const response = await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'rsvp',
-            guestId: currentGuestId,
-            name: currentGuest,
-            status: status,
-            plusOne: plusOne,
-            showPublic: showPublic
-          })
+        const params = new URLSearchParams({
+          action: 'rsvp',
+          guest: currentGuestId,
+          name: currentGuest,
+          status: status,
+          plusOne: plusOne.toString(),
+          showPublic: showPublic.toString()
+        });
+
+        const response = await fetch(`${API_URL}?${params.toString()}`, {
+          redirect: 'follow'
         });
 
         const data = await response.json();
@@ -1155,17 +1327,17 @@
       const showPublic = document.getElementById('show-public').checked;
 
       try {
-        const response = await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'rsvp',
-            guestId: currentGuestId,
-            name: currentGuest,
-            status: rsvpStatus,
-            plusOne: plusOne,
-            showPublic: showPublic
-          })
+        const params = new URLSearchParams({
+          action: 'rsvp',
+          guest: currentGuestId,
+          name: currentGuest,
+          status: rsvpStatus,
+          plusOne: plusOne.toString(),
+          showPublic: showPublic.toString()
+        });
+
+        const response = await fetch(`${API_URL}?${params.toString()}`, {
+          redirect: 'follow'
         });
 
         const data = await response.json();
@@ -1236,15 +1408,15 @@
       input.disabled = true;
 
       try {
-        const response = await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'topic',
-            guestId: currentGuestId,
-            authorName: currentGuest,
-            text: text
-          })
+        const params = new URLSearchParams({
+          action: 'topic',
+          guest: currentGuestId,
+          authorName: currentGuest,
+          text: text
+        });
+
+        const response = await fetch(`${API_URL}?${params.toString()}`, {
+          redirect: 'follow'
         });
 
         const data = await response.json();
@@ -1276,15 +1448,15 @@
       const isLiked = guestLikes.has(topicId);
 
       try {
-        const response = await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'like',
-            guestId: currentGuestId,
-            topicId: topicId,
-            unlike: isLiked
-          })
+        const params = new URLSearchParams({
+          action: 'like',
+          guest: currentGuestId,
+          topicId: topicId,
+          unlike: isLiked.toString()
+        });
+
+        const response = await fetch(`${API_URL}?${params.toString()}`, {
+          redirect: 'follow'
         });
 
         const data = await response.json();
