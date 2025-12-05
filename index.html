@@ -5,6 +5,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>День рождения Серга — 13 декабря 2025</title>
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎉</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
@@ -1204,16 +1206,11 @@
     });
 
     async function init() {
-      // Get guest ID from URL path parameter
-      // Supports both /guest123 and /bdayparty2025/guest123
-      const path = window.location.pathname;
-      const pathParts = path.split('/').filter(part => part.length > 0);
-      
-      // Get the last part of the path as guest ID
-      // Skip common filenames like index.html
-      const guestId = pathParts[pathParts.length - 1];
-      
-      if (!guestId || guestId === 'index.html' || guestId.endsWith('.html')) {
+      // Get guest ID from URL query parameter ?g=
+      const urlParams = new URLSearchParams(window.location.search);
+      const guestId = urlParams.get('g');
+
+      if (!guestId) {
         showError();
         return;
       }
