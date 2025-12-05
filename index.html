@@ -1204,15 +1204,16 @@
     });
 
     async function init() {
-      // Get guest ID from URL hash
-      const hash = window.location.hash.slice(1);
+      // Get guest ID from URL query parameter
+      const urlParams = new URLSearchParams(window.location.search);
+      const guestId = urlParams.get('guest');
 
-      if (!hash) {
+      if (!guestId) {
         showError();
         return;
       }
 
-      currentGuestId = hash;
+      currentGuestId = guestId;
 
       // First load guest data to validate user
       try {
